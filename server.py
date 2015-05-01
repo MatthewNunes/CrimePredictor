@@ -1,5 +1,6 @@
 from flask import Flask, render_template
 from flask.ext.socketio import SocketIO, emit
+from postcodes import PostCoder
 import json, time, csv, os, sys, datetime, sqlite3 as lite
 
 app = Flask(__name__)
@@ -57,11 +58,17 @@ def get_crime_data(startDate, endDate):
 			crimeData["crime"].append(row['crime_type'])
 	return crimeData
 
+def getLatLong(pstcode):
+	pc = PostCoder()
+	result = pc.get(pstcode)
+	return result
+
 @socketio.on('update map')
 def updateMap(msg):
 	info = json.loads(msg)
 	crime_data = get_crime_data(info['from'], info['to'])
-	emit('map update', {'latitudes':crime_data["latitudes"], 'longitudes':crime_data["longitudes"], 'crime_type':crime_data["crime"]}, broadcast=True)
+	location_data = getLatLong(info['postcode'])
+	emit('map update', {'latitudes':crime_data["latitudes"], 'longitudes':crime_data["longitudes"], 'crime_type':crime_data["crime"], 'curLat':location_data[u'geo'][u'lat'], 'curLon':location_data[u'geo'][u'lng']}, broadcast=True)
 
 # Config and start server
 if __name__ == '__main__':

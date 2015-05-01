@@ -21,6 +21,7 @@
 	<body>
   		From (dd-mm-YYYY): <input type="text" id="from">
   		To (dd-mm-YYYY): <input type="text" id="to">
+  		Postcode: <input type="text" id="postcode">
   		<button type="button" onclick="loadMarkers()">Update</button>
 		<div id="map-canvas"></div>
 
@@ -109,10 +110,17 @@
 	      	function loadMarkers(){
 	      		var from = document.getElementById("from").value;
 	      		var to = document.getElementById("to").value;
-	      		socket.emit('update map',JSON.stringify({from:from,to:to}));
+	      		var postcode = document.getElementById("postcode").value;
+	      		socket.emit('update map',JSON.stringify({from:from,to:to,postcode:postcode}));
 	      	}
 
 	      	socket.on('map update', function(msg) {
+	      		mapOptions = {
+	        		center: { lat: msg.curLat, lng: msg.curLon},
+	        		zoom: 18
+	        	};
+				map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
+	      		
 	      		setUpMap(msg.longitudes, msg.latitudes, msg.crime_type);
 	      	});
 	  		google.maps.event.addDomListener(window, 'load', initialize);
