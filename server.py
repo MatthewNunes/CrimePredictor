@@ -5,9 +5,6 @@ import json, time, csv, os, sys, datetime, sqlite3 as lite
 app = Flask(__name__)
 socketio = SocketIO(app)
 
-longitudes = []
-latitudes = []
-crime_type = []
 
 def create_database():
 	con = lite.connect("police.db")
@@ -36,21 +33,35 @@ def fill_database():
 
 @app.route("/", methods=["GET"])
 def render_homepage():
-	get_crime_data()
+	crime_data = get_crime_data("01-01-2014", "02-01-2014")
 
-	return render_template('frontend.html', latitudes=json.dumps(latitudes), longitudes=json.dumps(longitudes), crime_type=json.dumps(crime_type))
+	return render_template('frontend.html', latitudes=json.dumps(crime_data["latitudes"]), longitudes=json.dumps(crime_data["longitudes"]), crime_type=json.dumps(crime_data["crime"]))
 
-def get_crime_data():
-	path = 'crimedata'
-	for filename in os.listdir(path):
-		for csvFile in os.listdir(path + "/" + filename):
-			if not("outcomes" in csvFile):
-				with open(path+"/"+filename+"/"+csvFile, 'rb') as f:
-					reader = csv.DictReader(f)
-					for row in reader:
-						longitudes.append(row['Longitude'])
-						latitudes.append(row['Latitude'])
-						crime_type.append(row['Crime type'])
+def get_crime_data(startDate, endDate):
+	crimeData = {"longitudes":[], "latitudes":[], "crime":[]}
+	start_date = startDate
+	end_date = endDate
+	pattern = "%d-%m-%Y"
+	epoch_start_date = (datetime.datetime.strptime(start_date, pattern) - datetime.datetime(1970,1,1)).total_seconds()
+	epoch_end_date = (datetime.datetime.strptime(end_date, pattern) - datetime.datetime(1970,1,1)).total_seconds()
+	con = lite.connect('police.db')
+
+	with con:
+		con.row_factory = lite.Row
+		cur = con.cursor()
+		cur.execute("SELECT * FROM Crimes WHERE (month >= ?) AND (month <= ?)", (int(epoch_start_date), int(epoch_end_date)))        
+		rows = cur.fetchall()
+		for row in rows:
+			crimeData["longitudes"].append(row['longitude'])
+			crimeData["latitudes"].append(row['latitude'])
+			crimeData["crime"].append(row['crime_type'])
+	return crimeData
+
+@socketio.on('update map')
+def updateMap(msg):
+	info = json.loads(msg)
+	crime_data = get_crime_data(info['from'], info['to'])
+	emit('map update', {'latitudes':crime_data["latitudes"], 'longitudes':crime_data["longitudes"], 'crime_type':crime_data["crime"]}, broadcast=True)
 
 # Config and start server
 if __name__ == '__main__':

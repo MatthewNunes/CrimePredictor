@@ -2,6 +2,7 @@
 	<head>
 		<title>Crime Predictor</title>
 		<script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA_--yv1R7wr1B_r8Hp5xHLqeQzQ-vkn5g"></script>
+		<script src="http://cdnjs.cloudflare.com/ajax/libs/socket.io/0.9.16/socket.io.min.js"></script>
 		<style>
 			html { 
 				height: 100% 
@@ -18,47 +19,102 @@
 		</style>
 	</head>
 	<body>
+  		From (dd-mm-YYYY): <input type="text" id="from">
+  		To (dd-mm-YYYY): <input type="text" id="to">
+  		<button type="button" onclick="loadMarkers()">Update</button>
 		<div id="map-canvas"></div>
 
 	
 		<script type="text/javascript">
-			function initialize() {
-		        	var mapOptions = {
-		        	center: { lat: 51.481415, lng: -3.178947},
-		        	zoom: 8
-		        };
-		        var map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
-		        var latitudes = {{ latitudes|safe }};
-		        var longitudes = {{ longitudes|safe }};
-		        var crime_type = {{ crime_type|safe }};
-		        var markers = new Array();
-		        var antisocial_image = new google.maps.MarkerImage(
+			var socket = io.connect('/');
+			var markers = new Array();
+
+			var antisocial_image = new google.maps.MarkerImage(
 				    "static/media/antisocial.png",
 				    null, /* size is determined at runtime */
 				    null, /* origin is 0,0 */
 				    null, /* anchor is bottom center of the scaled image */
     				new google.maps.Size(30, 50)
-				);
-		        for (i = 0; i < latitudes.length; i++) {
-		        	var myLatlng = new google.maps.LatLng(latitudes[i],longitudes[i]);
-		        	if (crime_type[i] === "Anti-social behaviour"){
+			);
+			var drug_image = new google.maps.MarkerImage(
+			    "static/media/drugs.png",
+			    null, /* size is determined at runtime */
+			    null, /* origin is 0,0 */
+			    null, /* anchor is bottom center of the scaled image */
+				new google.maps.Size(30, 50)
+			);
+			var violence_image = new google.maps.MarkerImage(
+			    "static/media/violence.png",
+			    null, /* size is determined at runtime */
+			    null, /* origin is 0,0 */
+			    null, /* anchor is bottom center of the scaled image */
+				new google.maps.Size(30, 30)
+			);
+			var mapOptions = {
+	        	center: { lat: 51.481415, lng: -3.178947},
+	        	zoom: 10
+	        };
+			var map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
+		
+			function initialize() {
+		        var latitudes = {{ latitudes|safe }};
+		        var longitudes = {{ longitudes|safe }};
+		        var crime_type = {{ crime_type|safe }};
+		        setUpMap(longitudes, latitudes, crime_type);
+		
+		    }
+
+		    function setUpMap(longT, lat, type) {
+		    	setAllMap(null);
+		    	markers = []		    	
+		        for (i = 0; i < lat.length; i++) {
+		        	var myLatlng = new google.maps.LatLng(lat[i],longT[i]);
+		        	if (type[i] === "Anti-social behaviour"){
 		        		markers.push(new google.maps.Marker({
 							position: myLatlng,
-    						title:crime_type[i],
+    						title:type[i],
     						icon:antisocial_image
 						}));	
+		        	}
+		        	else if (type[i] === "Drugs") {
+		        		markers.push(new google.maps.Marker({
+							position: myLatlng,
+    						title:type[i],
+    						icon:drug_image
+						}));
+		        	}
+		        	else if (type[i] === "Violence and sexual offences") {
+		        		markers.push(new google.maps.Marker({
+							position: myLatlng,
+    						title:type[i],
+    						icon:violence_image
+						}));
 		        	}
 		        	else {
 			        	markers.push(new google.maps.Marker({
 							position: myLatlng,
-	    					title:crime_type[i]
+	    					title:type[i]
 						}));
 		        	}
 		        }
-		        for (i = 0; i < markers.length; i++) {
-		       		markers[i].setMap(map);
-		        }
+		        setAllMap(map);
 	      	}
+
+	      	function setAllMap(map) {
+  				for (var i = 0; i < markers.length; i++) {
+    				markers[i].setMap(map);
+  			}
+}
+	      	
+	      	function loadMarkers(){
+	      		var from = document.getElementById("from").value;
+	      		var to = document.getElementById("to").value;
+	      		socket.emit('update map',JSON.stringify({from:from,to:to}));
+	      	}
+
+	      	socket.on('map update', function(msg) {
+	      		setUpMap(msg.longitudes, msg.latitudes, msg.crime_type);
+	      	});
 	  		google.maps.event.addDomListener(window, 'load', initialize);
 		</script>
 	</body>
